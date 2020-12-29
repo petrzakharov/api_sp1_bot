@@ -1,0 +1,5 @@
+# add tokens to file and rename file to '.env'
+
+PRAKTIKUM_TOKEN = ''
+TELEGRAM_TOKEN = ''
+TELEGRAM_CHAT_ID = ''

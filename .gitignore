@@ -3,12 +3,15 @@ env/
 venv/
 .venv
 .venv/
-
+.env
+.env/
 __pycache__/
 *.py[cod]
 
 .idea
 *.env
+*.log
+.log/
 .DS_Store
 .AppleDouble
 .LSOverride
