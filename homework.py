@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 PRAKTIKUM_TOKEN = os.getenv('PRAKTIKUM_TOKEN')  # noqa
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN') or '12345:abcdef'
 CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 PRAKTIKUM_URL = 'https://praktikum.yandex.ru/api/user_api/homework_statuses/'  # noqa
@@ -51,8 +51,8 @@ def send_message(message, bot_client=TG_BOT):
 
 
 def main():
-    current_timestamp = 0
-    # current_timestamp = int(time.time())  # начальное значение timestamp
+    #current_timestamp = 0
+    current_timestamp = int(time.time())  # начальное значение timestamp
     while True:
         try:
             new_homework = get_homework_statuses(
