@@ -20,7 +20,7 @@ MESSAGES = {'statuses': {'rejected': 'К сожалению в работе на
                          'approved': ('Ревьюеру всё понравилось, '
                                       'можно приступать к следующему уроку.'),
                          'default_error': 'Невозможно получить информацию'},
-            'success_message': 'У вас проверили работу "{key_1}"!\n\n{key_2}'
+            'success_message': 'У вас проверили работу "{name}"!\n\n{status}'
             }
 
 
@@ -28,30 +28,33 @@ def parse_homework_status(homework):
     try:
         homework_name = homework['homework_name']
         homework_status = homework['status']
-        logging.info(f'Получен статус работы {homework_status}')
+        verdict = MESSAGES['statuses'][homework_status]
+        logging.info(f'Статус работы {homework_status}, вердикт смапплен')
     except KeyError as e:
         logging.error(f'В апи практикум поменялся формат данных, {e}')
         return MESSAGES['statuses']['default_error']
-    verdict = MESSAGES['statuses'][homework_status]
-    return MESSAGES['success_message'].format(key_1=homework_name,
-                                              key_2=verdict)
+    return MESSAGES['success_message'].format(name=homework_name,
+                                              status=verdict)
 
 
 def get_homework_statuses(current_timestamp):
     params = {'from_date': current_timestamp}
+    logging.info(f'Запрос данных от практикум')
     homework_statuses = requests.get(PRAKTIKUM_URL,
                                      params=params, headers=PRAKTIKUM_OAUTH)
+    try:
+        homework_statuses.raise_for_status()
+    except requests.exceptions.HTTPError as e:
+        logging.critical(f'Запрос вернулся с ошибкой {e}')
     return homework_statuses.json()
-    # тут должна быть безопасная обработка запроса и логирование
 
 
 def send_message(message, bot_client=TG_BOT):
-    logging.info(f'Бот отправляет сообщение: {message}, chat_id {CHAT_ID} ')
+    logging.info(f'Попытка отправить сообщение: {message}, chat_id {CHAT_ID} ')
     return bot_client.send_message(CHAT_ID, message)
 
 
 def main():
-    #current_timestamp = 0
     current_timestamp = int(time.time())  # начальное значение timestamp
     while True:
         try:
@@ -66,7 +69,6 @@ def main():
                                                  current_timestamp)
             logging.info(f'Смена времени отсчета. Новая итерация.')
             time.sleep(300)
-
         except Exception as e:
             print(f'Бот столкнулся с ошибкой: {e}')
             logging.critical(e)
