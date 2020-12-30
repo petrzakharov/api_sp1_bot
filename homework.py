@@ -55,7 +55,8 @@ def send_message(message, bot_client=TG_BOT):
 
 
 def main():
-    current_timestamp = int(time.time())  # начальное значение timestamp
+    current_timestamp = 0
+    #current_timestamp = int(time.time())  # начальное значение timestamp
     while True:
         try:
             new_homework = get_homework_statuses(
