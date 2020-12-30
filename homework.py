@@ -40,11 +40,11 @@ def parse_homework_status(homework):
 def get_homework_statuses(current_timestamp):
     params = {'from_date': current_timestamp}
     logging.info(f'Запрос данных от практикум')
-    homework_statuses = requests.get(PRAKTIKUM_URL,
-                                     params=params, headers=PRAKTIKUM_OAUTH)
     try:
-        homework_statuses.raise_for_status()
-    except requests.exceptions.HTTPError as e:
+        homework_statuses = requests.get(PRAKTIKUM_URL,
+                                         params=params,
+                                         headers=PRAKTIKUM_OAUTH)
+    except requests.exceptions.RequestException as e:
         logging.critical(f'Запрос вернулся с ошибкой {e}')
     return homework_statuses.json()
 
