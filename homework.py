@@ -3,7 +3,7 @@ import os
 import time
 
 import requests
-import telegram
+from telegram import Bot
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -14,7 +14,7 @@ CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 PRAKTIKUM_URL = 'https://praktikum.yandex.ru/api/user_api/homework_statuses/'  # noqa
 PRAKTIKUM_OAUTH = {'Authorization': 'OAuth ' + PRAKTIKUM_TOKEN}  # noqa
-TG_BOT = telegram.Bot(token=TELEGRAM_TOKEN)
+TG_BOT = Bot(token=TELEGRAM_TOKEN)
 
 MESSAGES = {'statuses': {'rejected': 'К сожалению в работе нашлись ошибки.',
                          'approved': ('Ревьюеру всё понравилось, '
