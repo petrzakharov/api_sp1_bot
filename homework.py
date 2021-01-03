@@ -8,49 +8,62 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-PRAKTIKUM_TOKEN = os.getenv('PRAKTIKUM_TOKEN')  # noqa
+PRAKTIKUM_TOKEN = os.getenv('PRAKTIKUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN') or '12345:abcdef'
 CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
-PRAKTIKUM_URL = 'https://praktikum.yandex.ru/api/user_api/homework_statuses/'  # noqa
-PRAKTIKUM_OAUTH = {'Authorization': 'OAuth ' + PRAKTIKUM_TOKEN}  # noqa
-TG_BOT = Bot(token=TELEGRAM_TOKEN)
+PRAKTIKUM_URL = 'https://praktikum.yandex.ru/api/user_api/homework_statuses/'
+PRAKTIKUM_OAUTH = {'Authorization': 'OAuth ' + PRAKTIKUM_TOKEN}
+telegram_bot = Bot(token=TELEGRAM_TOKEN)
 
-MESSAGES = {'statuses': {'rejected': 'К сожалению в работе нашлись ошибки.',
-                         'approved': ('Ревьюеру всё понравилось, '
-                                      'можно приступать к следующему уроку.'),
-                         'default_error': 'Невозможно получить информацию'},
-            'success_message': 'У вас проверили работу "{name}"!\n\n{status}'
-            }
+STATUS_MESSAGES = {
+    'rejected': 'К сожалению в работе нашлись ошибки.',
+    'approved': (
+        'Ревьюеру всё понравилось, можно приступать к следующему уроку.'
+    )
+}
+
+SUCCESS_MESSAGE = 'У вас проверили работу "{name}"!\n\n{status}'
+ERROR_MESSAGE = ('Запрос к апи вернулся с ошибкой. {description} '
+                 'URL="{PRAKTIKUM_URL}", params="{params}"')
+LOGGING_SEND_MESSAGE = ('Попытка отправить сообщение: "{message}", ' 
+                        'chat_id "{chat_id}"')
 
 
 def parse_homework_status(homework):
-    try:
-        homework_name = homework['homework_name']
-        homework_status = homework['status']
-        verdict = MESSAGES['statuses'][homework_status]
-        logging.info(f'Статус работы {homework_status}, вердикт смапплен')
-    except KeyError as e:
-        logging.error(f'В апи практикум поменялся формат данных, {e}')
-        return MESSAGES['statuses']['default_error']
-    return MESSAGES['success_message'].format(name=homework_name,
-                                              status=verdict)
+    name = homework['homework_name']
+    status = homework['status']
+    if status not in STATUS_MESSAGES:
+        raise KeyError(f'Работа имеет неизвестный статус, {status}')
+    verdict = STATUS_MESSAGES[status]
+    return SUCCESS_MESSAGE.format(name=name, status=verdict)
 
 
 def get_homework_statuses(current_timestamp):
     params = {'from_date': current_timestamp}
-    logging.info(f'Запрос данных от практикум')
+    logging.info(f'Запрос данных апи практикум')
     try:
-        homework_statuses = requests.get(PRAKTIKUM_URL,
-                                         params=params,
-                                         headers=PRAKTIKUM_OAUTH)
-    except requests.exceptions.RequestException as e:
-        logging.critical(f'Запрос вернулся с ошибкой {e}')
-    return homework_statuses.json()
+        response = requests.get(PRAKTIKUM_URL,
+                                params=params,
+                                headers=PRAKTIKUM_OAUTH)
+    except requests.exceptions.RequestException as exception:
+        # нормально ли делать except, а после raise ошибки,
+        # но уже с кастомным соообщением?
+        raise Exception(f'Ошибка запроса к апи, {exception}')
+    else:
+        data = response.json()
+        if 'code' in data or 'error' in data:
+            description = data.get('message', 'Сообщение отсутствует.')
+            raise Exception(ERROR_MESSAGE.format(description=description,
+                                                 PRAKTIKUM_URL=PRAKTIKUM_URL,
+                                                 params=params))
+        if not data.get('homeworks'):
+            raise KeyError('В ответе апи нет данных о работе.')
+    return data
 
 
-def send_message(message, bot_client=TG_BOT):
-    logging.info(f'Попытка отправить сообщение: {message}, chat_id {CHAT_ID} ')
+def send_message(message, bot_client=telegram_bot):
+    logging.info(LOGGING_SEND_MESSAGE.format(message=message, chat_id=CHAT_ID))
     return bot_client.send_message(CHAT_ID, message)
 
 
@@ -67,18 +80,17 @@ def main():
                 logging.info('Бот успешно отправил сообщение')
             current_timestamp = new_homework.get('current_date',
                                                  current_timestamp)
-            logging.info(f'Смена времени отсчета. Новая итерация.')
+            logging.info(f'Новая итерация проверки ответа апи.')
             time.sleep(300)
         except Exception as e:
-            print(f'Бот столкнулся с ошибкой: {e}')
-            logging.critical(e)
+            logging.error(e)
             time.sleep(5)
 
 
 if __name__ == '__main__':
     logging.basicConfig(
         level=logging.INFO,
-        filename=__file__.split('.')[0] + '_log.log',
+        filename=__file__ + '.log',
         format='%(asctime)s:%(levelname)s:%(funcName)s %(message)s',
         filemode='w'
     )
