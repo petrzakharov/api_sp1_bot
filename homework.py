@@ -57,7 +57,7 @@ def get_homework_statuses(current_timestamp):
             raise Exception(ERROR_MESSAGE.format(description=description,
                                                  PRAKTIKUM_URL=PRAKTIKUM_URL,
                                                  params=params))
-        if not data.get('homeworks'):
+        if 'homeworks' not in data:
             raise KeyError('В ответе апи нет данных о работе.')
     return data
 
