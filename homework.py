@@ -3,8 +3,8 @@ import os
 import time
 
 import requests
-from telegram import Bot
 from dotenv import load_dotenv
+from telegram import Bot
 
 load_dotenv()
 
@@ -18,72 +18,99 @@ telegram_bot = Bot(token=TELEGRAM_TOKEN)
 
 STATUS_MESSAGES = {
     'rejected': 'К сожалению в работе нашлись ошибки.',
-    'approved': (
+    'approved':
         'Ревьюеру всё понравилось, можно приступать к следующему уроку.'
+}
+SUCCESS_MESSAGE = 'У вас проверили работу "{name}"!\n\n{verdict}'
+ERROR_MESSAGES = {
+    'api_response': (
+        'Запрос к апи Яндекс Практикум вернулся с ошибкой. {message} '
+        'value="{value}", URL="{PRAKTIKUM_URL}", '
+        'params="{params}"'
+    ),
+    'unknown_status': 'Работа имеет неизвестный статус, {status}',
+    'connection': (
+        'Ошибка запроса к апи. '
+        'URL="{PRAKTIKUM_URL}", '
+        'params="{params}"'
     )
 }
-
-SUCCESS_MESSAGE = 'У вас проверили работу "{name}"!\n\n{status}'
-ERROR_MESSAGE = ('Запрос к апи вернулся с ошибкой. {description} '
-                 'URL="{PRAKTIKUM_URL}", params="{params}"')
-LOGGING_SEND_MESSAGE = ('Попытка отправить сообщение: "{message}", ' 
-                        'chat_id "{chat_id}"')
+INFO_MESSAGES = {
+    'try_send':
+        'Попытка отправить сообщение: "{message}", chat_id "{chat_id}"',
+    'praktikum_request': 'Запрос данных апи Яндекс Практикум.',
+    'praktikum_response': 'Яндекс Практикум отдал ответ.',
+    'success_send': 'Бот успешно отправил сообщение.',
+    'new_iteration': 'Новая итерация проверки ответа Яндекс Практикум апи.'
+}
 
 
 def parse_homework_status(homework):
-    name = homework['homework_name']
-    status = homework['status']
+    status = homework.get('status')
     if status not in STATUS_MESSAGES:
-        raise KeyError(f'Работа имеет неизвестный статус, {status}')
-    verdict = STATUS_MESSAGES[status]
-    return SUCCESS_MESSAGE.format(name=name, status=verdict)
+        raise ValueError(
+            ERROR_MESSAGES['unknown_status'].format(status=status)
+        )
+    return SUCCESS_MESSAGE.format(
+        name=homework['homework_name'],
+        verdict=STATUS_MESSAGES[status]
+    )
 
 
 def get_homework_statuses(current_timestamp):
     params = {'from_date': current_timestamp}
-    logging.info(f'Запрос данных апи практикум')
+    logging.info(INFO_MESSAGES['praktikum_request'])
     try:
         response = requests.get(PRAKTIKUM_URL,
                                 params=params,
                                 headers=PRAKTIKUM_OAUTH)
     except requests.exceptions.RequestException as exception:
-        # нормально ли делать except, а после raise ошибки,
-        # но уже с кастомным соообщением?
-        raise Exception(f'Ошибка запроса к апи, {exception}')
-    else:
-        data = response.json()
-        if 'code' in data or 'error' in data:
-            description = data.get('message', 'Сообщение отсутствует.')
-            raise Exception(ERROR_MESSAGE.format(description=description,
-                                                 PRAKTIKUM_URL=PRAKTIKUM_URL,
-                                                 params=params))
-        if 'homeworks' not in data:
-            raise KeyError('В ответе апи нет данных о работе.')
-    return data
+        raise ConnectionError(
+            ERROR_MESSAGES['connection'].format(
+                PRAKTIKUM_URL=PRAKTIKUM_URL,
+                params=params)
+        ) from exception
+    homework_data = response.json()
+    for key_error in ['code', 'error']:
+        if key_error in homework_data:
+            message = homework_data.get('message')
+            value = homework_data.get('key_error')
+            raise ValueError(
+                ERROR_MESSAGES['api_response'].format(
+                    message=message,
+                    value=value,
+                    PRAKTIKUM_URL=PRAKTIKUM_URL,
+                    params=params
+                ))
+    return homework_data
 
 
 def send_message(message, bot_client=telegram_bot):
-    logging.info(LOGGING_SEND_MESSAGE.format(message=message, chat_id=CHAT_ID))
+    logging.info(
+        INFO_MESSAGES['try_send'].format(
+            message=message,
+            chat_id=CHAT_ID
+        ))
     return bot_client.send_message(CHAT_ID, message)
 
 
 def main():
-    current_timestamp = int(time.time())  # начальное значение timestamp
+    current_timestamp = int(time.time())
     while True:
         try:
             new_homework = get_homework_statuses(
                 current_timestamp)  # получает json
-            logging.info('Яндекс практикум отдал ответ')
+            logging.info(INFO_MESSAGES['praktikum_response'])
             if new_homework.get('homeworks'):
                 send_message(
                     parse_homework_status(new_homework.get('homeworks')[0]))
-                logging.info('Бот успешно отправил сообщение')
+                logging.info(INFO_MESSAGES['success_send'])
             current_timestamp = new_homework.get('current_date',
                                                  current_timestamp)
-            logging.info(f'Новая итерация проверки ответа апи.')
+            logging.info(INFO_MESSAGES['new_iteration'])
             time.sleep(300)
-        except Exception as e:
-            logging.error(e)
+        except Exception as exception:
+            logging.error(exception)
             time.sleep(5)
 
 
