@@ -25,14 +25,16 @@ SUCCESS_MESSAGE = 'У вас проверили работу "{name}"!\n\n{verdi
 ERROR_MESSAGES = {
     'api_response': (
         'Запрос к апи Яндекс Практикум вернулся с ошибкой. {message} '
-        'value="{value}", URL="{PRAKTIKUM_URL}", '
-        'params="{params}"'
+        'value="{value}", URL="{url}", '
+        'params="{params}", '
+        'headers="{headers}"'
     ),
     'unknown_status': 'Работа имеет неизвестный статус, {status}',
     'connection': (
         'Ошибка запроса к апи. '
-        'URL="{PRAKTIKUM_URL}", '
-        'params="{params}"'
+        'URL="{url}", '
+        'params="{params}", '
+        'headers="{headers}"'
     )
 }
 INFO_MESSAGES = {
@@ -59,6 +61,11 @@ def parse_homework_status(homework):
 
 def get_homework_statuses(current_timestamp):
     params = {'from_date': current_timestamp}
+    params_for_log = dict(
+        url=PRAKTIKUM_URL,
+        params=params,
+        headers=PRAKTIKUM_OAUTH
+    )
     logging.info(INFO_MESSAGES['praktikum_request'])
     try:
         response = requests.get(PRAKTIKUM_URL,
@@ -66,21 +73,18 @@ def get_homework_statuses(current_timestamp):
                                 headers=PRAKTIKUM_OAUTH)
     except requests.exceptions.RequestException as exception:
         raise ConnectionError(
-            ERROR_MESSAGES['connection'].format(
-                PRAKTIKUM_URL=PRAKTIKUM_URL,
-                params=params)
+            ERROR_MESSAGES['connection'].format(**params_for_log)
         ) from exception
     homework_data = response.json()
     for key_error in ['code', 'error']:
         if key_error in homework_data:
             message = homework_data.get('message')
-            value = homework_data.get('key_error')
-            raise ValueError(
+            value = homework_data.get(key_error)
+            raise ConnectionError(
                 ERROR_MESSAGES['api_response'].format(
+                    **params_for_log,
                     message=message,
-                    value=value,
-                    PRAKTIKUM_URL=PRAKTIKUM_URL,
-                    params=params
+                    value=value
                 ))
     return homework_data
 
