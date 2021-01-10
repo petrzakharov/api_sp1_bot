@@ -23,19 +23,17 @@ STATUS_MESSAGES = {
 }
 SUCCESS_MESSAGE = 'У вас проверили работу "{name}"!\n\n{verdict}'
 ERROR_MESSAGES = {
-    'api_response': (
+    'api_response':
         'Запрос к апи Яндекс Практикум вернулся с ошибкой. {message} '
         'value="{value}", URL="{url}", '
         'params="{params}", '
-        'headers="{headers}"'
-    ),
+        'headers="{headers}"',
     'unknown_status': 'Работа имеет неизвестный статус, {status}',
-    'connection': (
+    'connection':
         'Ошибка запроса к апи. '
         'URL="{url}", '
         'params="{params}", '
         'headers="{headers}"'
-    )
 }
 INFO_MESSAGES = {
     'try_send':
@@ -61,28 +59,26 @@ def parse_homework_status(homework):
 
 def get_homework_statuses(current_timestamp):
     params = {'from_date': current_timestamp}
-    params_for_log = dict(
+    params_request = dict(
         url=PRAKTIKUM_URL,
         params=params,
         headers=PRAKTIKUM_OAUTH
     )
     logging.info(INFO_MESSAGES['praktikum_request'])
     try:
-        response = requests.get(PRAKTIKUM_URL,
-                                params=params,
-                                headers=PRAKTIKUM_OAUTH)
+        response = requests.get(**params_request)
     except requests.exceptions.RequestException as exception:
         raise ConnectionError(
-            ERROR_MESSAGES['connection'].format(**params_for_log)
+            ERROR_MESSAGES['connection'].format(**params_request)
         ) from exception
     homework_data = response.json()
     for key_error in ['code', 'error']:
         if key_error in homework_data:
             message = homework_data.get('message')
             value = homework_data.get(key_error)
-            raise ConnectionError(
+            raise RuntimeError(
                 ERROR_MESSAGES['api_response'].format(
-                    **params_for_log,
+                    **params_request,
                     message=message,
                     value=value
                 ))
